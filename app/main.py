@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from bson.decimal128 import Decimal128
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
@@ -18,7 +19,6 @@ db = client[os.getenv("MONGO_DB")]
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
-app = FastAPI(title="Employee Attendance & Analytics API", version="2.0.0")
 
 
 def _index_signature(index_doc):
@@ -130,11 +130,12 @@ def _ensure_index(collection, fields, unique=False):
 def _ensure_unique_index(collection, fields):
     _ensure_index(collection, fields, unique=True)
 
-
-@app.on_event("startup")
 def create_indexes():
     _ensure_unique_index(db.employees, [("emp_code", ASCENDING)])
-    _ensure_unique_index(db.attendance_logs, [("emp_code", ASCENDING), ("date", ASCENDING)])
+    _ensure_unique_index(
+        db.attendance_logs,
+        [("emp_code", ASCENDING), ("date", ASCENDING)]
+    )
 
     for fields in [
         [("date", DESCENDING), ("emp_code", ASCENDING)],
@@ -150,6 +151,18 @@ def create_indexes():
     ]:
         _ensure_index(db.employees, fields)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_indexes()
+    yield
+
+
+app = FastAPI(
+    title="Employee Attendance & Analytics API",
+    version="2.0.0",
+    lifespan=lifespan
+)
 
 # --------------------------------------------------------------------------- #
 # Helpers
