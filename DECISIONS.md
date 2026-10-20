@@ -2,20 +2,33 @@
 
 ### 1. Indexes
 
-I use a unique index on `employees.emp_code` to prevent duplicate employees. A unique compound index on `attendance_logs.emp_code` and `date` ensures that an employee has only one attendance record per day. I also use indexes for attendance date, status, and employee-based queries to improve filtering and sorting. I would avoid adding unnecessary indexes because they increase storage and write costs.
+Startup creates unique indexes on `employees.emp_code` and
+`attendance_logs.(emp_code, date)`. Attendance indexes also cover date ordering,
+employee punch-in lookup, and status/date sorting. Employee indexes support
+department and join-date filters. These indexes trade storage and write cost for
+read performance; actual plan use must be checked on MongoDB.
 
 ### 2. Punch-in race
 
-If two identical punch-in requests arrive together, both may initially check for an existing record. The unique compound index allows only one insert to succeed. The other request receives a duplicate-key error, which the API converts into a `409 Conflict` response.
+The API does not rely on check-then-insert. MongoDB's unique
+`(emp_code, date)` index allows one insert for that attendance day; duplicate
+key errors become `409 Conflict`. This is the database-level concurrency
+guard, but simultaneous requests still need an isolated integration test.
 
 ### 3. Ties
 
-The leaderboard uses competition ranking. Employees tied on late minutes receive the same rank, and the next rank is skipped. The query applies the limit after ranking, so employees tied at the cutoff are included even if the result contains more rows than the requested limit.
+The late leaderboard uses `$rank` over descending total late minutes, then sorts
+ties by employee code. It filters on `rank <= limit` after ranking, preserving
+all employees tied at a qualifying rank.
 
 ### 4. Headcount
 
-The department summary starts from employees who joined by the end of the selected month and then combines their attendance data. This includes employees who have no attendance logs and excludes employees who joined later.
+Monthly department analytics aggregate from eligible employees and look up
+attendance, preserving employees with no logs. Trend headcount is calculated
+per date from each employee's `joined_on` value.
 
 ### 5. Scaling to 100x data
 
-I would review query execution plans, improve indexes based on actual query patterns, and load-test aggregation pipelines. I would also consider caching frequently requested analytics if the data freshness requirements allow it.
+Use the explain endpoint with `executionStats` and representative data to check
+index scans, examined keys/documents, and sort stages. Load-test the pipelines
+before considering caching; no performance claim is made without those results.

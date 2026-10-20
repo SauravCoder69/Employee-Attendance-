@@ -38,18 +38,24 @@ A REST API built with Python, FastAPI, and MongoDB to manage employee informatio
    pip install -r requirements.txt
    ```
 
-3. Create a `.env` file using `.env.example` and configure:
+3. Copy `.env.example` to `.env` and configure:
 
    ```env
    MONGO_URI=mongodb://localhost:27017
    MONGO_DB=attendance_db
    ```
 
-4. Load the sample data:
+   Environment variables already set by the process take precedence over `.env`.
+
+4. (Optional) Load the sample data into a dedicated, disposable database:
 
    ```bash
    python sample_seed.py
    ```
+
+   **Warning:** `sample_seed.py` deletes all existing documents in the `employees`
+   and `attendance_logs` collections before loading samples. Never point it at a
+   production, shared, or otherwise valuable database.
 
 5. Start the API:
 
@@ -70,3 +76,7 @@ Once the server is running, visit:
 - MongoDB 6.0 or newer is required.
 - Keep `.env` and all secrets out of version control.
 - The API should be tested against the requirements and larger datasets, not only the provided sample records.
+- MongoDB 6.0+ is required for the aggregation operators used by the analytics.
+- Run the isolated business-rule tests with `python -m unittest discover -s tests -v`.
+- Database-backed behavior, concurrency, and execution plans must also be checked
+  against an isolated MongoDB database before release.
